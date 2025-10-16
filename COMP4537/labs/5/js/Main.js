@@ -5,7 +5,7 @@ const mysql = require('mysql');
 const DB_CONNECTION_MSG   = "Connected to database.\n";
 const DB_HOST             = "localhost";
 const DB_USER             = "root";
-const DB_PASSWORD         = "password";
+const DB_PASSWORD         = "";
 const DB_NAME             = "COMP4537-lab5";
 const DB_TABLE            = "patients";
 const HEADER_CONTENT_TYPE = "Content-Type";
@@ -25,6 +25,14 @@ const UNSUPPORT_REQ_MSG = "Unsupported request method.\n";
 const POST_SUCCESS_MSG  = "Data inserted successfully.\n";
 const STATUS_OK         = 200;
 const PORT              = 3000;
+
+const TABLE_CREATION_QUERY = `
+CREATE TABLE IF NOT EXISTS ${DB_TABLE} (
+    patientid INT(11) AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100),
+    dateOfBirth DATE
+) ENGINE=InnoDB;
+`;
 
 /**
  * Main class
@@ -54,65 +62,79 @@ class Main {
             database: DB_NAME
         });
 
-        const server = http.createServer((req, res) => {
-            db.connect((err) => {
+        db.connect((err) => {
+            if (err) {
+                throw err;
+            }
+            console.log(DB_CONNECTION_MSG);
+
+            // Create the table if it doesn't exist
+            db.query(TABLE_CREATION_QUERY, (err, result) => {
                 if (err) {
                     throw err;
                 }
-
-                res.write(DB_CONNECTION_MSG);
-
-                switch (req.method) {
-                    case OPTIONS:
-                        res.setHeader(CORS.ORIGIN, ALL);
-                        res.setHeader(CORS.METHODS, `${GET}, ${POST}, ${OPTIONS}`);
-                        res.setHeader(CORS.HEADERS, HEADER_CONTENT_TYPE);
-                        res.end();
-                        break;
-
-                    case GET:
-                        res.setHeader(CORS.ORIGIN, ALL);
-                        
-                        const parsedUrl   = url.parse(req.url, true);
-                        const queryParams = parsedUrl.query;
-                        const sql         = this.getSqlCommandGet(queryParams);
-
-                        db.query(sql, (err, results) => {
-                            if (err) throw err;
-                            const returnedData = results;
-                            res.writeHead(STATUS_OK, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
-                            res.end(JSON.stringify(returnedData));
-                        });
-                        
-                        break;
-
-                    case POST:
-                        let body = BODY_DEFAULT;
-
-                        res.setHeader(CORS.ORIGIN, ALL);
-
-                        req.on('data', chunk => {
-                            body += chunk.toString();
-                        });
-
-                        req.on('end', () => {
-                            const sql = this.getSqlCommandPost(body);
-
-                            db.query(sql, (err, results) => {
-                                if (err) throw err;
-                            });
-
-                            res.writeHead(STATUS_OK, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
-                            res.end(JSON.stringify({ message: POST_SUCCESS_MSG }));
-                        });
-                        break;
-
-                    default:
-                        res.write(UNSUPPORT_REQ_MSG);
-                        res.end(req.method);
-                        break;
-                }
+                console.log("Table ensured to exist.");
             });
+        });
+
+        const server = http.createServer((req, res) => {
+            res.setHeader(CORS.ORIGIN, ALL);
+            res.setHeader(CORS.METHODS, `${GET}, ${POST}, ${OPTIONS}`);
+            res.setHeader(CORS.HEADERS, `${HEADER_CONTENT_TYPE}`);
+
+            switch (req.method) {
+                case OPTIONS:
+                    res.writeHead(STATUS_OK);
+                    res.end();
+                    break;
+
+                case GET:
+                    const queryParams = url.parse(req.url, true).query;
+                    const { sql } = this.getSqlCommandGet(queryParams);
+
+                    db.query(sql, (err, result) => {
+                        if (err) {
+                            res.writeHead(500, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                            res.end(JSON.stringify({ error: "Invalid query." }));
+                            return;
+                        }
+
+                        res.writeHead(STATUS_OK, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                        res.end(JSON.stringify(result));
+                    });
+                    break;
+
+                case POST:
+                    let body = BODY_DEFAULT;
+                    req.on("data", chunk => {
+                        body += chunk;
+                    });
+
+                    req.on("end", () => {
+                        try {
+                            const sql = this.getSqlCommandPost(body);
+                            db.query(sql, (err, result) => {
+                                if (err) {
+                                    res.writeHead(500, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                                    res.end(JSON.stringify({ error: "Invalid query." }));
+                                    return;
+                                }
+
+                                res.writeHead(201, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                                res.end(JSON.stringify({ message: POST_SUCCESS_MSG }));
+                            });
+                        } catch (err) {
+                            res.writeHead(400, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                            res.end(JSON.stringify({ error: "Invalid data." }));
+                        }
+                    });
+                    break;
+
+                default:
+                    res.writeHead(405, { HEADER_CONTENT_TYPE: HEADER_JSON_CONTENT });
+                    res.end(JSON.stringify({ error: UNSUPPORT_REQ_MSG }));
+                    break;
+            }
         });
 
         server.listen(PORT, () => {
@@ -134,6 +156,23 @@ class Main {
 
         if (queryParams.name) {
             sql += ` AND name LIKE ${queryParams.name}`;
+        }
+
+        if (queryParams.dateOfBirth) {
+            sql += ` AND dateOfBirth = ${queryParams.dateOfBirth}`;
+        }
+
+        const values = [];
+        if (queryParams.id) {
+            values.push(queryParams.id);
+        }
+
+        if (queryParams.name) {
+            values.push(queryParams.name);
+        }
+
+        if (queryParams.dateOfBirth) {
+            values.push(queryParams.dateOfBirth);
         }
 
         return { sql, values };
