@@ -1,12 +1,13 @@
 const http = require('http');
 const url = require('url');
 const mysql = require('mysql');
+require('dotenv').config();
 
 const DB_CONNECTION_MSG     = "Connected to database.\n";
-const DB_HOST               = "localhost";
-const DB_USER               = "root";
-const DB_PASSWORD           = "";
-const DB_NAME               = "COMP4537-lab5";
+const DB_HOST               = "https://phpmyadmin.co/tbl_structure.php";
+const DB_USER               = dotenv.DB_USER;
+const DB_PASSWORD           = dotenv.DB_PASSWORD;
+const DB_NAME               = dotenv.DB_NAME;
 const HEADER_CONTENT_TYPE   = "Content-Type";
 const HEADER_JSON_CONTENT   = "application/json";
 const GET                   = "GET";
