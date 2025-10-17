@@ -4,7 +4,7 @@ const mysql = require('mysql');
 require('dotenv').config();
 
 const DB_CONNECTION_MSG     = "Connected to database.\n";
-const DB_HOST               = "https://phpmyadmin.co/tbl_structure.php";
+const DB_HOST               = process.env.DB_HOST;
 const DB_USER               = process.env.DB_USER;
 const DB_PASSWORD           = process.env.DB_PASSWORD;
 const DB_NAME               = process.env.DB_NAME;
