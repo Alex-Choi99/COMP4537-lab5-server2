@@ -104,6 +104,12 @@ class Main {
                     req.on(END, () => {
                         const sql = this.validateSqlCommand(body);
 
+                        if (!sql) {
+                            res.writeHead(400, { [HEADER_CONTENT_TYPE]: HEADER_JSON_CONTENT });
+                            res.end(JSON.stringify({ error: "Invalid SQL command" }));
+                            return;
+                        }
+
                         db.query(sql, (err, results) => {
                             if (err) {
                                 res.end(JSON.stringify({ message: POST_FAIL_MSG }));
