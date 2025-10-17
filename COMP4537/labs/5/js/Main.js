@@ -2,19 +2,25 @@ const http = require('http');
 const url = require('url');
 const mysql = require('mysql');
 
-const DB_CONNECTION_MSG   = "Connected to database.\n";
-const DB_HOST             = "localhost";
-const DB_USER             = "root";
-const DB_PASSWORD         = "";
-const DB_NAME             = "COMP4537-lab5";
-const DB_TABLE            = "patients";
-const HEADER_CONTENT_TYPE = "Content-Type";
-const HEADER_JSON_CONTENT = "application/json";
-const GET                 = "GET";
-const POST                = "POST";
-const OPTIONS             = "OPTIONS";
-const BODY_DEFAULT        = "";
-const ALL                 = "*";
+const DB_CONNECTION_MSG     = "Connected to database.\n";
+const DB_HOST               = "localhost";
+const DB_USER               = "root";
+const DB_PASSWORD           = "";
+const DB_NAME               = "COMP4537-lab5";
+const HEADER_CONTENT_TYPE   = "Content-Type";
+const HEADER_JSON_CONTENT   = "application/json";
+const GET                   = "GET";
+const POST                  = "POST";
+const OPTIONS               = "OPTIONS";
+const BODY_DEFAULT          = "";
+const ALL                   = "*";
+const UPDATE                = "UPDATE";
+const DROP                  = "DROP";
+const DELETE                = "DELETE";
+const QUERY_TYPE            = "string";
+const SQL_CMD_ERROR_MSG     = "SQL command not valid";
+const DATA                  = "data";
+const END                   = "end";
 const CORS = {
     ORIGIN: 'Access-Control-Allow-Origin',
     METHODS: 'Access-Control-Allow-Methods',
@@ -24,9 +30,8 @@ const CORS = {
 const UNSUPPORT_REQ_MSG = "Unsupported request method.\n";
 const POST_SUCCESS_MSG  = "Data inserted successfully.\n";
 const POST_FAIL_MSG     = "Data insertion failed.\n";
-const EMPTY             = "";
-const STATUS_OK         = 200;
-const PORT              = 3000;
+const GET_FAIL_MSG      = "Data retrieval failed.\n";
+const PORT      = 3000;
 
 /**
  * Main class
@@ -41,8 +46,7 @@ class Main {
     /**
      * Runs the application.
      */
-    static main()
-    {
+    static main() {
         const db = mysql.createConnection({
             host: DB_HOST,
             user: DB_USER,
@@ -58,7 +62,7 @@ class Main {
             console.log(DB_CONNECTION_MSG);
         });
 
-        this.runServer(db); 
+        this.runServer(db);
     }
 
     /**
@@ -73,56 +77,46 @@ class Main {
                     res.setHeader(CORS.METHODS, `${GET}, ${POST}, ${OPTIONS}`);
                     res.setHeader(CORS.HEADERS, HEADER_CONTENT_TYPE);
                     res.end();
-                break;
+                    break;
 
                 case GET:
                     res.setHeader(CORS.ORIGIN, ALL);
                     res.setHeader(HEADER_CONTENT_TYPE, HEADER_JSON_CONTENT);
-                    
-                    const query = url.parse(req.url, true).query;
-                    console.log(query);
 
+                    const query = url.parse(req.url, true).query;
                     const sql = this.validateSqlCommand(query);
 
                     db.query(sql, (err, results) => {
-                        if (err){
-                            res.writeHead(400, { [HEADER_CONTENT_TYPE]: HEADER_JSON_CONTENT });
-                            throw err;
+                        if (err) {
+                            res.end(JSON.stringify({ message: GET_FAIL_MSG }));
+                        } else {
+                            res.end(JSON.stringify(results));
                         }
-                        const returnedData = results;
-                        console.log(returnedData);
-
-                        res.end(JSON.stringify(returnedData));
                     });
-                break;
+                    break;
 
                 case POST:
                     let body = BODY_DEFAULT;
 
                     res.setHeader(CORS.ORIGIN, ALL);
-                    req.on('data', chunk => body += chunk.toString());
-                    req.on('end', () => {
+                    req.on(DATA, chunk => body += chunk.toString());
+                    req.on(END, () => {
                         const sql = this.validateSqlCommand(body);
-                        let isError = false;
-                        
+
                         db.query(sql, (err, results) => {
                             if (err) {
-                                console.log("INSIDE db.query ERROR");
-                                isError = true;
                                 res.end(JSON.stringify({ message: POST_FAIL_MSG }));
-                            }
-                            else
-                            {
+                            } else {
                                 res.end(JSON.stringify({ message: POST_SUCCESS_MSG }));
                             }
                         });
                     });
-                break; 
+                    break;
 
                 default:
                     res.write(UNSUPPORT_REQ_MSG);
                     res.end(req.method);
-                break; 
+                    break;
             }
         });
 
@@ -138,14 +132,16 @@ class Main {
      */
     static validateSqlCommand(query) {
         let sql = null;
-        const parsedQuery = JSON.parse(query);
+        const queryStr = typeof query === QUERY_TYPE ? query : JSON.stringify(query);
+        const parsedQuery = JSON.parse(queryStr);
 
-        if(parsedQuery.query && !parsedQuery.query.startsWith("UPDATE") 
-                 && !parsedQuery.query.startsWith("DROP") 
-                 && !parsedQuery.query.startsWith("DELETE")) {
+        if (parsedQuery.query &&
+            !parsedQuery.query.startsWith(UPDATE) &&
+            !parsedQuery.query.startsWith(DROP) &&
+            !parsedQuery.query.startsWith(DELETE)) {
             sql = parsedQuery.query;
         } else {
-            console.log("SQL command not valid");
+            console.error(SQL_CMD_ERROR_MSG);
         }
 
         return sql;
