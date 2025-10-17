@@ -87,6 +87,12 @@ class Main {
                     const query = url.parse(req.url, true).query;
                     const sql = this.validateSqlCommand(query);
 
+                    if (!sql) {
+                        res.writeHead(400, { [HEADER_CONTENT_TYPE]: HEADER_JSON_CONTENT });
+                        res.end(JSON.stringify({ error: "Invalid SQL command" }));
+                        return;
+                    }
+
                     db.query(sql, (err, results) => {
                         if (err) {
                             res.end(JSON.stringify({ message: GET_FAIL_MSG }));
@@ -139,16 +145,21 @@ class Main {
      */
     static validateSqlCommand(query) {
         let sql = null;
-        const queryStr = typeof query === QUERY_TYPE ? query : JSON.stringify(query);
-        const parsedQuery = JSON.parse(queryStr);
 
-        if (parsedQuery.query &&
-            !parsedQuery.query.startsWith(UPDATE) &&
-            !parsedQuery.query.startsWith(DROP) &&
-            !parsedQuery.query.startsWith(DELETE)) {
-            sql = parsedQuery.query;
-        } else {
-            console.error(SQL_CMD_ERROR_MSG);
+        try {
+            const queryStr = typeof query === QUERY_TYPE ? query : JSON.stringify(query);
+            const parsedQuery = JSON.parse(queryStr);
+
+            if (parsedQuery.query &&
+                !parsedQuery.query.startsWith(UPDATE) &&
+                !parsedQuery.query.startsWith(DROP) &&
+                !parsedQuery.query.startsWith(DELETE)) {
+                sql = parsedQuery.query;
+            } else {
+                console.error(SQL_CMD_ERROR_MSG);
+            }
+        } catch (e) {
+            console.error("Error parsing SQL command:", e.message);
         }
 
         return sql;
